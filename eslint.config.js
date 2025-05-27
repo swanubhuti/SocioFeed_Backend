@@ -13,5 +13,12 @@ export default defineConfig([
 		files: ['**/*.{js,mjs,cjs,jsx}'],
 		languageOptions: { globals: globals.browser },
 	},
+	{
+		settings: {
+			react: {
+				version: 'detect',
+			},
+		},
+	},
 	pluginReact.configs.flat.recommended,
 ]);
