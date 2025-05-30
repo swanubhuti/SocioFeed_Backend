@@ -13,3 +13,115 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id         Int      @id @default(autoincrement())
+  username   String   @unique
+  email      String   @unique
+  password   String
+  profilePic String?
+  bio        String?
+  isActive   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  verificationToken String?  @unique 
+  verificationExpires DateTime?
+  otp         String?  // OTP for email verification
+  otpExpires  DateTime? // OTP expiration timestamp
+  resetOtp    String?  // OTP for password recovery
+  resetExpires DateTime?
+  posts      Post[]
+  comments   Comment[]
+  savedPosts SavedPost[]
+
+  followers Follow[] @relation("FollowerRelation")
+  following Follow[] @relation("FollowingRelation")
+
+  conversationsStarted Conversation[] @relation("StartedConversations")
+  conversationsJoined  Conversation[] @relation("JoinedConversations")
+
+  messagesSent     Message[] @relation("MessagesSent")
+  messagesReceived Message[] @relation("MessagesReceived")
+  likes            Like[]
+}
+
+model Follow {
+  id          Int      @id @default(autoincrement())
+  followerId  Int
+  followingId Int
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("FollowerRelation", fields: [followerId], references: [id])
+  following User @relation("FollowingRelation", fields: [followingId], references: [id])
+}
+
+model Post {
+  id        Int      @id @default(autoincrement())
+  content   String?
+  images    String[]
+  createdAt DateTime @default(now())
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id])
+
+  likes      Like[]
+  comments   Comment[]
+  savedPosts SavedPost[]
+}
+
+model Like {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  postId    Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  post Post @relation(fields: [postId], references: [id])
+}
+
+model SavedPost {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  postId    Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  post Post @relation(fields: [postId], references: [id])
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  createdAt DateTime @default(now())
+
+  authorId Int
+  postId   Int
+
+  author User @relation(fields: [authorId], references: [id])
+  post   Post @relation(fields: [postId], references: [id])
+}
+
+model Conversation {
+  id        Int      @id @default(autoincrement())
+  user1Id   Int
+  user2Id   Int
+  createdAt DateTime @default(now())
+
+  user1 User @relation("StartedConversations", fields: [user1Id], references: [id])
+  user2 User @relation("JoinedConversations", fields: [user2Id], references: [id])
+
+  messages Message[]
+}
+
+model Message {
+  id             Int      @id @default(autoincrement())
+  conversationId Int
+  senderId       Int
+  receiverId     Int
+  content        String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  sender       User         @relation("MessagesSent", fields: [senderId], references: [id])
+  receiver     User         @relation("MessagesReceived", fields: [receiverId], references: [id])
+}
+

@@ -1,24 +1,40 @@
-import js from '@eslint/js';
+// eslint.config.js
 import globals from 'globals';
-import pluginReact from 'eslint-plugin-react';
-import { defineConfig } from 'eslint/config';
+import pluginJs from '@eslint/js';
 
-export default defineConfig([
+export default [
 	{
-		files: ['**/*.{js,mjs,cjs,jsx}'],
-		plugins: { js },
-		extends: ['js/recommended'],
+		// Add this 'ignores' property to exclude directories/files
+		ignores: ['generated/', 'node_modules/'], // Exclude the entire 'generated' directory and 'node_modules'
 	},
 	{
-		files: ['**/*.{js,mjs,cjs,jsx}'],
-		languageOptions: { globals: globals.browser },
-	},
-	{
-		settings: {
-			react: {
-				version: 'detect',
+		languageOptions: {
+			ecmaVersion: 2021,
+			sourceType: 'module',
+			globals: {
+				...globals.node,
 			},
 		},
+		files: ['**/*.js'], // Apply these rules to all .js files that are NOT ignored
+		plugins: {
+			// No specific plugins for now, as it's a backend Node.js project
+		},
+		rules: {
+			...pluginJs.configs.recommended.rules,
+
+			'no-unused-vars': [
+				'error',
+				{
+					argsIgnorePattern: '^_',
+					varsIgnorePattern: '^_',
+					caughtErrorsIgnorePattern: '^_',
+				},
+			],
+			eqeqeq: 'error', // Enforce strict equality (===)
+			// 'no-console': 'warn', // Consider this rule, or 'off' during development
+			// 'no-debugger': 'error', // Keep this on for production code
+			// 'no-trailing-spaces': 'error',
+			// 'indent': ['error', 2, { SwitchCase: 1 }], // Example: if you want 2-space indent
+		},
 	},
-	pluginReact.configs.flat.recommended,
-]);
+];
