@@ -25,7 +25,7 @@ export default [
 			'no-unused-vars': [
 				'error',
 				{
-					argsIgnorePattern: '^_',
+					argsIgnorePattern: '^_|next|error|req|res', // Ignore variables starting with _ or common middleware names
 					varsIgnorePattern: '^_',
 					caughtErrorsIgnorePattern: '^_',
 				},

@@ -41,19 +41,36 @@
 
 // export default isAuthenticated;
 
-import { catchAsyncError } from './catchAsyncError.js';
-import ErrorHandler from './error.js';
 import jwt from 'jsonwebtoken';
 import prisma from '../database/db.config.js';
+import ErrorHandler from '../middlewares/error.js';
+import { refreshAccessToken } from '../controllers/userController.js';
+import { catchAsyncError } from './catchAsyncError.js';
 
 export const isAuthenticated = catchAsyncError(async (req, res, next) => {
-	const { token } = req.cookies;
+	const token = req.cookies.token;
+
 	if (!token) {
-		return next(new ErrorHandler('User is not authenticated.', 400));
+		return next(new ErrorHandler('User is not authenticated.', 401));
 	}
-	const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
 
-	req.user = await prisma.user.findUnique({ where: { id: decoded.id } });
+	try {
+		console.log('Received Token:', req.cookies.token);
+		console.log('Decoding Token...');
+		const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+		console.log('Decoded:', decoded);
+		req.user = await prisma.user.findUnique({ where: { id: decoded.id } });
 
-	next();
+		if (!req.user) {
+			return next(new ErrorHandler('User not found.', 401));
+		}
+
+		next();
+	} catch (error) {
+		if (error.name === 'TokenExpiredError') {
+			// Automatically refresh the access token when expired
+			return refreshAccessToken(req, res, next);
+		}
+		return next(new ErrorHandler('Invalid token.', 401));
+	}
 });

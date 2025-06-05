@@ -1,7 +1,8 @@
 import prisma from '../database/db.config.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { generateToken } from '../utils/sendToken.js';
+import jwt from 'jsonwebtoken';
+import { generateTokens } from '../utils/sendToken.js';
 import { sendEmail } from '../utils/sendEmail.js';
 import ErrorHandler from '../middlewares/error.js';
 import { catchAsyncError } from '../middlewares/catchAsyncError.js';
@@ -29,7 +30,7 @@ export const register = catchAsyncError(async (req, res, next) => {
 				email,
 				password: hashedPassword,
 				verificationToken,
-				isActive: false, // User is inactive until verified
+				isActive: false,
 			},
 		});
 
@@ -39,20 +40,20 @@ export const register = catchAsyncError(async (req, res, next) => {
 			email,
 			subject: 'Activate Your Account',
 			message: `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-      <h2 style="color: #0f172a;">Welcome to <span style="color: #0284c7;">SocioFeed</span> 👋</h2>
-      <p style="font-size: 16px; color: #334155;">Thank you for signing up! Please confirm your email address to activate your account and start using all the features.</p>
-      <div style="margin: 20px 0;">
-        <a href="${verificationUrl}" style="background-color: #0284c7; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">
-          Verify My Account
-        </a>
-      </div>
-      <p style="font-size: 14px; color: #64748b;">If the button above doesn’t work, copy and paste this link into your browser:</p>
-      <p style="font-size: 13px; word-break: break-all; color: #334155;">${verificationUrl}</p>
-      <hr style="margin: 30px 0; border: none; border-top: 1px solid #e2e8f0;" />
-      <p style="font-size: 12px; color: #94a3b8;">If you didn’t request this email, you can safely ignore it.</p>
-    </div>
-    `,
+			<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+			<h2 style="color: #0f172a;">Welcome to <span style="color: #0284c7;">SocioFeed</span> 👋</h2>
+			<p style="font-size: 16px; color: #334155;">Thank you for signing up! Please confirm your email address to activate your account and start using all the features.</p>
+			<div style="margin: 20px 0;">
+				<a href="${verificationUrl}" style="background-color: #0284c7; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+				Verify My Account
+				</a>
+			</div>
+			<p style="font-size: 14px; color: #64748b;">If the button above doesn’t work, copy and paste this link into your browser:</p>
+			<p style="font-size: 13px; word-break: break-all; color: #334155;">${verificationUrl}</p>
+			<hr style="margin: 30px 0; border: none; border-top: 1px solid #e2e8f0;" />
+			<p style="font-size: 12px; color: #94a3b8;">If you didn’t request this email, you can safely ignore it.</p>
+			</div>
+			`,
 		});
 
 		return res.status(201).json({
@@ -93,27 +94,65 @@ export const verifyAccount = catchAsyncError(async (req, res, next) => {
 	});
 });
 
-export const login = catchAsyncError(async (req, res, _next) => {
-	// Changed 'next' to '_next' here
+export const login = catchAsyncError(async (req, res, next) => {
 	const { email, password } = req.body;
 
 	const user = await prisma.user.findUnique({ where: { email } });
 	if (!user || !user.isActive)
-		return _next(new ErrorHandler('User not found or not verified.', 400)); // Also here
+		return next(new ErrorHandler('User not found or not verified.', 400));
 
 	const isMatch = await bcrypt.compare(password, user.password);
-	if (!isMatch) return _next(new ErrorHandler('Invalid credentials.', 400)); // Also here
+	if (!isMatch) return next(new ErrorHandler('Invalid credentials.', 400));
 
-	generateToken(res, user, 'Login successful.');
-});
+	const { accessToken, refreshToken } = generateTokens(user); // Assuming generateTokens returns these
 
-export const logout = catchAsyncError(async (_, res, _next) => {
-	// Changed 'next' to '_next' here
 	res
-		.clearCookie('token')
-		.status(200)
-		.json({ success: true, message: 'Logged out successfully.' });
+		.cookie('refreshToken', refreshToken, {
+			httpOnly: true,
+			// In production, set secure to true and ensure HTTPS
+			secure: false,
+			// 'Lax' is often a good default for SPAs, as it sends cookies for top-level navigations.
+			// 'Strict' is more secure but can break if frontend/backend are on different subdomains or ports.
+			sameSite: 'Lax',
+			expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Example: 7 days for refresh token
+			path: '/',
+		})
+		.cookie('token', accessToken, {
+			// <--- CORRECTED: Changed 'accessToken' to 'token'
+			httpOnly: true,
+			secure: false,
+			sameSite: 'Lax',
+			expires: new Date(Date.now() + 1 * 60 * 60 * 1000), // Example: 1 hour for access token
+			path: '/',
+		})
+		.json({
+			success: true,
+			user,
+		});
 });
+
+export const logout = async (req, res) => {
+	console.log('Logout initiated.'); // Add log
+	console.log('Cookies before clear:', req.cookies);
+	res.clearCookie('refreshToken', {
+		httpOnly: true,
+		secure: false,
+		sameSite: 'Lax', // Must match 'sameSite' used when setting the cookie
+		path: '/',
+	});
+	res.clearCookie('token', {
+		// <--- CORRECTED: Already was 'token', now consistent
+		httpOnly: true,
+		secure: false,
+		sameSite: 'Lax', // Must match 'sameSite' used when setting the cookie
+		path: '/',
+	});
+	console.log(
+		'Cookies after clear (server-side operations):',
+		res.getHeaders()['set-cookie']
+	);
+	res.status(200).json({ success: true, message: 'Logged out successfully.' });
+};
 
 export const getUser = catchAsyncError(async (req, res, _next) => {
 	// Changed 'next' to '_next' here
@@ -185,4 +224,37 @@ export const resetPassword = catchAsyncError(async (req, res, _next) => {
 	res
 		.status(200)
 		.json({ success: true, message: 'Password reset successfully.' });
+});
+export const refreshAccessToken = catchAsyncError(async (req, res, next) => {
+	const refreshToken = req.cookies.refreshToken;
+
+	if (!refreshToken)
+		return next(new ErrorHandler('No refresh token provided.', 403));
+
+	try {
+		const decoded = jwt.verify(
+			refreshToken,
+			process.env.JWT_REFRESH_SECRET_KEY
+		);
+		const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+
+		if (!user) return next(new ErrorHandler('User not found.', 403));
+
+		const newAccessToken = jwt.sign(
+			{ id: user.id },
+			process.env.JWT_SECRET_KEY,
+			{ expiresIn: '45m' }
+		);
+		res.cookie('token', newAccessToken, {
+			httpOnly: true,
+			secure: false,
+			sameSite: 'Lax',
+			expires: new Date(Date.now() + 45 * 60 * 1000),
+			path: '/',
+		});
+
+		res.status(200).json({ success: true, accessToken: newAccessToken });
+	} catch (error) {
+		next(new ErrorHandler('Invalid refresh token.', error, 403));
+	}
 });
