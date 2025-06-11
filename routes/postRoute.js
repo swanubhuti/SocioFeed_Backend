@@ -18,12 +18,11 @@ import upload from '../middlewares/multer.js';
 
 const router = express.Router();
 
-// Post CRUD operations
 router.post('/', isAuthenticated, upload.array('images', 4), createPost);
 router.get('/feed', isAuthenticated, getFeedPosts);
 router.get('/saved', isAuthenticated, getSavedPosts);
-router.get('/user/:userId', getUserPosts); // Public route to view user posts
-router.get('/:id', getPost); // Public route to view single post
+router.get('/user/:userId', getUserPosts); 
+router.get('/:id', getPost); 
 router.put('/:id', isAuthenticated, updatePost);
 router.delete('/:id', isAuthenticated, deletePost);
 

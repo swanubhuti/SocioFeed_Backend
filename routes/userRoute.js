@@ -7,6 +7,7 @@ import {
 	forgotPassword,
 	resetPassword,
 	refreshAccessToken,
+	checkUsernameAvailability,
 } from '../controllers/userController.js';
 import upload from '../middlewares/multer.js';
 import { isAuthenticated } from '../middlewares/auth.js';
@@ -21,6 +22,7 @@ import {
 const router = express.Router();
 
 router.post('/register', register);
+router.get('/check-username', checkUsernameAvailability);
 router.get('/verify-account/:token', verifyAccount);
 router.post('/login', login);
 router.get('/logout', logout);
