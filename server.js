@@ -2,11 +2,18 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import http from 'http';
 import userRoutes from './routes/userRoute.js';
 import postRoutes from './routes/postRoute.js';
+import chatRoutes from './routes/chatRoutes.js';
+import { initSocket } from './socket/index.js';
 
 const app = express();
 const port = process.env.PORT || 8080;
+
+const server = http.createServer(app);
+
+initSocket(server); 
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -21,6 +28,7 @@ app.use(
 
 app.use('/api', userRoutes);
 app.use('/api/posts', postRoutes);
+app.use('/api/chat', chatRoutes);
 app.get('/api/health', (req, res) => {
 	res.status(200).json({
 		success: true,
@@ -35,4 +43,4 @@ app.use((req, res) => {
 	});
 });
 
-app.listen(port, () => console.log(`Listening on port ${port}...`));
+server.listen(port, () => console.log(`Listening on port ${port}...`));
