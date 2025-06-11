@@ -82,7 +82,12 @@ export const updateUserProfile = catchAsyncError(async (req, res, next) => {
 // POST /api/users/:id/follow
 export const followUser = catchAsyncError(async (req, res, next) => {
 	const followerId = req.user.id;
-	const followingId = parseInt(req.params.id);
+	const followingId = Number(req.params.id);
+
+	// Validate followingId is a valid number
+	if (isNaN(followingId)) {
+		return next(new ErrorHandler('Invalid user ID', 400));
+	}
 
 	if (followerId === followingId) {
 		return next(new ErrorHandler("You can't follow yourself", 400));
@@ -93,14 +98,15 @@ export const followUser = catchAsyncError(async (req, res, next) => {
 	});
 
 	if (isFollowing) {
+		// Unfollow logic
 		await prisma.follow.delete({ where: { id: isFollowing.id } });
 
-		// Fetch updated follow counts after deletion
+		// Correct counts after unfollow
 		const updatedFollowerCount = await prisma.follow.count({
-			where: { followerId: followingId },
+			where: { followingId }, // followers of the unfollowed user
 		});
 		const updatedFollowingCount = await prisma.follow.count({
-			where: { followerId: followerId },
+			where: { followerId }, // users the current user is following
 		});
 
 		return res.status(200).json({
@@ -110,14 +116,15 @@ export const followUser = catchAsyncError(async (req, res, next) => {
 			followingCount: updatedFollowingCount,
 		});
 	} else {
+		// Follow logic
 		await prisma.follow.create({ data: { followerId, followingId } });
 
-		// Fetch updated follow counts after addition
+		// Correct counts after follow
 		const updatedFollowerCount = await prisma.follow.count({
-			where: { followingId },
+			where: { followingId }, // followers of the followed user
 		});
 		const updatedFollowingCount = await prisma.follow.count({
-			where: { followerId },
+			where: { followerId }, // users the current user is following
 		});
 
 		return res.status(200).json({
@@ -128,7 +135,6 @@ export const followUser = catchAsyncError(async (req, res, next) => {
 		});
 	}
 });
-
 // GET /api/users/:id/followers or /following
 export const getUserFollowList = catchAsyncError(async (req, res, next) => {
 	const userId = parseInt(req.params.id);

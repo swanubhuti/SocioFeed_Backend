@@ -338,19 +338,21 @@ export const deleteComment = catchAsyncError(async (req, res, next) => {
 
 	const comment = await prisma.comment.findUnique({
 		where: { id: commentId },
+		include: { post: true }, // include post info
 	});
 
 	if (!comment) {
 		return next(new ErrorHandler('Comment not found', 404));
 	}
 
-	if (comment.authorId !== userId) {
+	const isOwner = comment.authorId === userId;
+	const isPostAuthor = comment.post.authorId === userId;
+
+	if (!isOwner && !isPostAuthor) {
 		return next(new ErrorHandler('Not authorized to delete this comment', 403));
 	}
 
-	await prisma.comment.delete({
-		where: { id: commentId },
-	});
+	await prisma.comment.delete({ where: { id: commentId } });
 
 	res.status(200).json({
 		success: true,
@@ -513,27 +515,39 @@ export const deletePost = catchAsyncError(async (req, res, next) => {
 		return next(new ErrorHandler('Not authorized to delete this post', 403));
 	}
 
-	// Delete associated images from cloudinary
-	if (post.images && post.images.length > 0) {
-		try {
-			const deletePromises = post.images.map((imageUrl) => {
-				const publicId = imageUrl.split('/').pop().split('.')[0];
-				return deleteFromCloudinary(publicId);
-			});
-			await Promise.all(deletePromises);
-		} catch (error) {
-			console.error('Error deleting images from cloudinary:', error);
-		}
+	try {
+		// Use transaction to delete all related data first
+		await prisma.$transaction(async (tx) => {
+			// 1. Delete likes
+			await tx.like.deleteMany({ where: { postId } });
+
+			// 2. Delete comments
+			await tx.comment.deleteMany({ where: { postId } });
+
+			// 3. Delete saved posts
+			await tx.savedPost.deleteMany({ where: { postId } });
+
+			// 4. Delete from Cloudinary
+			if (post.images && post.images.length > 0) {
+				const deletePromises = post.images.map((imageUrl) => {
+					const publicId = imageUrl.split('/').pop().split('.')[0];
+					return deleteFromCloudinary(publicId);
+				});
+				await Promise.all(deletePromises);
+			}
+
+			// 5. Finally, delete the post
+			await tx.post.delete({ where: { id: postId } });
+		});
+
+		res.status(200).json({
+			success: true,
+			message: 'Post and all related data deleted successfully',
+		});
+	} catch (err) {
+		console.error('Failed to delete post and related data:', err);
+		return next(new ErrorHandler('Post deletion failed', 500));
 	}
-
-	await prisma.post.delete({
-		where: { id: postId },
-	});
-
-	res.status(200).json({
-		success: true,
-		message: 'Post deleted successfully',
-	});
 });
 
 // GET /api/posts/user/:userId - Get posts by specific user

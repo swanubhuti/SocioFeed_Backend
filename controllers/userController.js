@@ -41,10 +41,10 @@ export const register = catchAsyncError(async (req, res, next) => {
 			subject: 'Activate Your Account',
 			message: `
 			<div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-			<h2 style="color: #0f172a;">Welcome to <span style="color: #0284c7;">SocioFeed</span> 👋</h2>
+			<h2 style="color: #0f172a;">Welcome to <span style="color: #7B1FA2;">SocioFeed</span> 👋</h2>
 			<p style="font-size: 16px; color: #334155;">Thank you for signing up! Please confirm your email address to activate your account and start using all the features.</p>
 			<div style="margin: 20px 0;">
-				<a href="${verificationUrl}" style="background-color: #0284c7; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+				<a href="${verificationUrl}" style="background-color: #7B1FA2; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">
 				Verify My Account
 				</a>
 			</div>
@@ -258,3 +258,38 @@ export const refreshAccessToken = catchAsyncError(async (req, res, next) => {
 		next(new ErrorHandler('Invalid refresh token.', error, 403));
 	}
 });
+
+export const checkUsernameAvailability = catchAsyncError(
+	async (req, res, next) => {
+		const { username } = req.query;
+		if (!username) {
+			return res
+				.status(400)
+				.json({ message: 'Username query parameter is required.' });
+		}
+
+		try {
+			const existingUser = await prisma.user.findUnique({
+				where: {
+					username: username,
+				},
+			});
+			if (existingUser) {
+				return res
+					.status(200)
+					.json({ isUnique: false, message: 'Username is already taken.' });
+			} else {
+				return res
+					.status(200)
+					.json({ isUnique: true, message: 'Username is available.' });
+			}
+		} catch (error) {
+			console.error('Backend error checking username uniqueness:', error);
+			res
+				.status(500)
+				.json({
+					message: 'Server error while checking username availability.',
+				});
+		}
+	}
+);
