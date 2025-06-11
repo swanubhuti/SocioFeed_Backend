@@ -15,9 +15,9 @@ export const uploadToCloudinary = async (filePath, folder = 'uploads') => {
 			folder: folder,
 			resource_type: 'auto',
 			transformation: [
-				{ width: 400, height: 400, crop: 'fill', gravity: 'face' },
-				{ quality: 'auto:good' },
-				{ format: 'jpg' },
+				{ width: 1000, height: 1000, crop: 'fill', gravity: 'face' },
+				{ quality: 90 },
+				{format: "webp"},
 			],
 		});
 		return result;
